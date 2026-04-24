@@ -136,36 +136,37 @@ const sprPos=v=>{const s=SPRITE[v]||SPRITE[65536];return`${s[0]*33.333}% ${s[1]*
 
 // --- Web Audio 音效 ---
 let audioCtx;
-function unlockAudio(){
-  if(audioCtx)return;
-  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  // iOS 需要播一個空聲音來解鎖
-  const b=audioCtx.createBuffer(1,1,22050),s=audioCtx.createBufferSource();
-  s.buffer=b;s.connect(audioCtx.destination);s.start();
+function ensureAudio(){
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
   if(audioCtx.state==='suspended')audioCtx.resume();
+  return audioCtx;
 }
-document.addEventListener('touchstart',unlockAudio,{once:true});
-document.addEventListener('click',unlockAudio,{once:true});
+// 任何使用者互動都嘗試解鎖
+['touchstart','touchend','click','keydown'].forEach(evt=>{
+  document.addEventListener(evt,()=>ensureAudio(),{once:true});
+});
 function playNewRoleSound(){
-  unlockAudio();
-  const c=audioCtx,now=c.currentTime;
-  // 升級音效：三個上升音符
-  [0,.12,.24].forEach((t,i)=>{
-    const o=c.createOscillator(),g=c.createGain();
-    o.connect(g);g.connect(c.destination);
-    o.type='triangle';
-    o.frequency.value=[523,659,784][i]; // C5 E5 G5
-    g.gain.setValueAtTime(.18,now+t);
-    g.gain.exponentialRampToValueAtTime(.001,now+t+.25);
-    o.start(now+t);o.stop(now+t+.25);
-  });
-  // 加一個閃亮音
-  const o2=audioCtx.createOscillator(),g2=audioCtx.createGain();
-  o2.connect(g2);g2.connect(audioCtx.destination);
-  o2.type='sine';o2.frequency.value=1047; // C6
-  g2.gain.setValueAtTime(.12,now+.4);
-  g2.gain.exponentialRampToValueAtTime(.001,now+.8);
-  o2.start(now+.4);o2.stop(now+.8);
+  try{
+    const c=ensureAudio(),now=c.currentTime;
+    const master=c.createGain();
+    master.gain.value=0.5;
+    master.connect(c.destination);
+    [0,.12,.24].forEach((t,i)=>{
+      const o=c.createOscillator(),g=c.createGain();
+      o.connect(g);g.connect(master);
+      o.type='triangle';
+      o.frequency.value=[523,659,784][i];
+      g.gain.setValueAtTime(.4,now+t);
+      g.gain.exponentialRampToValueAtTime(.001,now+t+.3);
+      o.start(now+t);o.stop(now+t+.3);
+    });
+    const o2=c.createOscillator(),g2=c.createGain();
+    o2.connect(g2);g2.connect(master);
+    o2.type='sine';o2.frequency.value=1047;
+    g2.gain.setValueAtTime(.3,now+.4);
+    g2.gain.exponentialRampToValueAtTime(.001,now+.9);
+    o2.start(now+.4);o2.stop(now+.9);
+  }catch(e){}
 }
 
 // --- Rules Modal ---
