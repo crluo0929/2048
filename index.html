@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>社畜升官系 2048</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;background:#faf8ef;display:flex;justify-content:center;align-items:center;min-height:100dvh;touch-action:none;user-select:none;overflow:hidden}
+.container{width:min(85vw,420px);display:flex;flex-direction:column;gap:12px}
+.header{display:flex;justify-content:space-between;align-items:center}
+h1{font-size:clamp(1.4rem,5vw,2rem);color:#776e65}
+.scores{display:flex;gap:8px}
+.score-box{background:#bbada0;color:#fff;border-radius:6px;padding:6px 14px;text-align:center;font-size:.7rem;line-height:1.4}
+.score-box .val{font-size:1.2rem;font-weight:bold}
+.btn-row{display:flex;gap:8px;align-items:center}
+button{background:#8f7a66;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:.9rem;cursor:pointer;font-family:inherit}
+button:active{opacity:.8}
+.btn-help{background:none;border:2px solid #8f7a66;color:#8f7a66;width:36px;height:36px;border-radius:50%;font-size:1.2rem;padding:0;display:flex;align-items:center;justify-content:center;font-weight:bold;flex-shrink:0}
+.board{position:relative;background:#bbada0;border-radius:8px;padding:2%;aspect-ratio:1;display:grid;grid-template-columns:repeat(4,1fr);gap:2%}
+.cell{background:rgba(238,228,218,.35);border-radius:6px}
+.tile-layer{position:absolute;inset:2%;display:grid;grid-template-columns:repeat(4,1fr);gap:2%;pointer-events:none}
+.tile{position:relative;border-radius:6px;background-size:400% 400%;background-image:url('2048.png');animation:pop .2s ease}
+@keyframes pop{0%{transform:scale(0)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+.tile.merged{animation:merge .25s ease}
+@keyframes merge{0%{transform:scale(1)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
+.overlay{position:absolute;inset:0;background:rgba(238,228,218,.73);border-radius:8px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:5}
+.overlay.show{opacity:1;pointer-events:auto}
+.overlay h2{font-size:clamp(1.5rem,6vw,2.5rem);color:#776e65}
+.overlay button{font-size:1rem;padding:10px 24px}
+.info{text-align:center;font-size:.75rem;color:#998;line-height:1.6}
+
+/* Modal shared */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;justify-content:center;align-items:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-bg.show{opacity:1;pointer-events:auto}
+.modal{background:#fff;border-radius:14px;width:min(88vw,400px);max-height:80dvh;overflow-y:auto;padding:24px;position:relative;transform:scale(.9);transition:transform .25s}
+.modal-bg.show .modal{transform:scale(1)}
+.modal h2{text-align:center;color:#776e65;margin-bottom:12px;font-size:1.3rem}
+.modal p,.modal li{font-size:.88rem;color:#555;line-height:1.7}
+.modal ul{padding-left:1.2em;margin:8px 0}
+.modal-close{position:absolute;top:10px;right:14px;background:none;border:none;font-size:1.5rem;color:#999;cursor:pointer;padding:4px}
+.modal .btn-cont{display:block;margin:16px auto 0;padding:10px 36px;font-size:1rem}
+
+/* Rules: evolution chain */
+.evo-chain{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0}
+.evo-item{text-align:center;font-size:.7rem;color:#776e65;line-height:1.3}
+.evo-item .icon{width:100%;aspect-ratio:1;border-radius:6px;background-image:url('2048.png');background-size:400% 400%;margin-bottom:2px}
+.evo-item .num{font-weight:bold;color:#8f7a66}
+
+/* New role modal */
+.new-role-img{width:50%;aspect-ratio:1;border-radius:12px;background-image:url('2048.png');background-size:400% 400%;margin:0 auto 12px;display:block}
+.new-role-name{text-align:center;font-size:1.4rem;font-weight:bold;color:#776e65;margin-bottom:4px}
+.new-role-val{text-align:center;font-size:.8rem;color:#bba;margin-bottom:10px}
+.new-role-desc{background:#fdf6ec;border-left:4px solid #f0c040;padding:10px 14px;border-radius:0 8px 8px 0;font-size:.88rem;color:#665;line-height:1.7;margin-bottom:4px}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🏢 社畜升官系</h1>
+    <div class="scores">
+      <div class="score-box">分數<div class="val" id="score">0</div></div>
+      <div class="score-box">最高<div class="val" id="best">0</div></div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button onclick="G.init()">重新開始</button>
+    <button class="btn-help" onclick="showRules()" title="遊戲規則">？</button>
+  </div>
+  <div class="board" id="board">
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+    <div class="tile-layer" id="tiles"></div>
+    <div class="overlay" id="overlay"><h2 id="msg"></h2><button onclick="G.init()">再來一局</button><button id="btnCont" onclick="G.cont()" style="display:none">繼續挑戰</button></div>
+  </div>
+  <div class="info">⬆⬇⬅➡ 或滑動操作<br>合併相同職位，一路升官到大老闆！</div>
+</div>
+
+<!-- Rules Modal -->
+<div class="modal-bg" id="rulesModal">
+  <div class="modal">
+    <button class="modal-close" onclick="hideRules()">✕</button>
+    <h2>📖 遊戲規則</h2>
+    <p><b>怎麼玩？</b></p>
+    <ul>
+      <li>用 <b>上下左右滑動</b>（手機）或 <b>方向鍵</b>（電腦）移動所有方塊</li>
+      <li>相同職位的方塊碰撞會<b>合併升官</b></li>
+      <li>每次移動後會隨機出現一位新社畜</li>
+      <li>合成出 <b>大老闆（2048）</b>就算贏了！但你可以繼續挑戰</li>
+      <li>當格子全滿且無法合併時，你就被<b>社會淘汰</b>了 😵</li>
+    </ul>
+    <p><b>🔗 社畜進化鏈</b></p>
+    <div class="evo-chain" id="evoChain"></div>
+    <button class="btn-cont" onclick="hideRules()">知道了！</button>
+  </div>
+</div>
+
+<!-- New Role Modal -->
+<div class="modal-bg" id="roleModal">
+  <div class="modal">
+    <h2>🎉 新職業誕生！</h2>
+    <div class="new-role-img" id="roleImg"></div>
+    <div class="new-role-name" id="roleName"></div>
+    <div class="new-role-val" id="roleVal"></div>
+    <div class="new-role-desc" id="roleDesc"></div>
+    <button class="btn-cont" onclick="hideRole()">繼續</button>
+  </div>
+</div>
+
+<script>
+const NAMES={2:'實習生',4:'助理',8:'專員',16:'組長',32:'經理',64:'協理',128:'副總',256:'總經理',512:'執行長',1024:'董事長',2048:'大老闆',4096:'離職仔',8192:'斜槓人生',16384:'財富自由',32768:'傳說人物',65536:'神級社畜'};
+const SPRITE={2:[0,0],4:[1,0],8:[2,0],16:[3,0],32:[0,1],64:[1,1],128:[2,1],256:[3,1],512:[0,2],1024:[1,2],2048:[2,2],4096:[3,2],8192:[0,3],16384:[1,3],32768:[2,3],65536:[3,3]};
+const DESC={
+  2:'免費勞工本人，連影印機都比你有存在感。每天最大的成就是幫前輩買對咖啡。',
+  4:'終於有名片了，但上面的職稱小到要用放大鏡看。工作內容：幫主管擋子彈。',
+  8:'以為自己是中堅份子，其實只是比較資深的工具人。Excel 用得比人生還熟練。',
+  16:'恭喜你開始管人了！但你管的那幾個人比你還難搞。開會時假裝在做筆記其實在畫圈圈。',
+  32:'終於有自己的辦公室了...才怪，只是隔板比較高而已。每天最重要的工作是幫上面的人背鍋。',
+  64:'一個聽起來很厲害但沒人知道在幹嘛的職位。主要技能：在會議中點頭如搗蒜。',
+  128:'離天花板只差一步，但那一步比登天還難。出差都坐商務艙，但其實只是去蓋章的。',
+  256:'公司裡的二把手，聽起來威風但其實是最大的夾心餅乾。上面有董事會壓，下面有一群人等著看你笑話。',
+  512:'年薪七位數，但頭髮剩不到七根。每天的行程就是從這個會議室走到那個會議室。',
+  1024:'開會只負責最後說「就這樣決定吧」，真正的工作是打高爾夫跟喝紅酒。名片上的頭銜比小說還長。',
+  2048:'傳說中的存在，沒人見過他本人但每個人都怕他。辦公室比你家客廳還大，養了一缸錦鯉比你薪水還貴。',
+  4096:'想通了，人生不是只有工作！離職那天全公司都在歡送，但你懷疑他們是在慶祝。',
+  8192:'白天寫程式，晚上做自媒體，週末擺攤賣手作。收入不穩定但自由的靈魂無價...吧？',
+  16384:'被動收入比主動收入還多，每天睡到自然醒。朋友圈都是「今天又從峇里島飛到瑞士」。',
+  32768:'沒人知道他是誰，但江湖上都有他的傳說。據說他一個眼神就能讓股市漲停。',
+  65536:'已經超越了社畜的概念，達到了上班族的最終型態。傳說他可以同時處理999封email還面帶微笑。'
+};
+const $=id=>document.getElementById(id);
+const sprPos=v=>{const s=SPRITE[v]||SPRITE[65536];return`${s[0]*33.333}% ${s[1]*33.333}%`};
+
+// --- Web Audio 音效 ---
+let audioCtx;
+function playNewRoleSound(){
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  const c=audioCtx,now=c.currentTime;
+  // 升級音效：三個上升音符
+  [0,.12,.24].forEach((t,i)=>{
+    const o=c.createOscillator(),g=c.createGain();
+    o.connect(g);g.connect(c.destination);
+    o.type='triangle';
+    o.frequency.value=[523,659,784][i]; // C5 E5 G5
+    g.gain.setValueAtTime(.18,now+t);
+    g.gain.exponentialRampToValueAtTime(.001,now+t+.25);
+    o.start(now+t);o.stop(now+t+.25);
+  });
+  // 加一個閃亮音
+  const o2=audioCtx.createOscillator(),g2=audioCtx.createGain();
+  o2.connect(g2);g2.connect(audioCtx.destination);
+  o2.type='sine';o2.frequency.value=1047; // C6
+  g2.gain.setValueAtTime(.12,now+.4);
+  g2.gain.exponentialRampToValueAtTime(.001,now+.8);
+  o2.start(now+.4);o2.stop(now+.8);
+}
+
+// --- Rules Modal ---
+function showRules(){
+  $('rulesModal').classList.add('show');
+}
+function hideRules(){
+  $('rulesModal').classList.remove('show');
+}
+// Build evolution chain
+(function(){
+  const el=$('evoChain');
+  const vals=[2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536];
+  vals.forEach(v=>{
+    const pos=sprPos(v);
+    el.insertAdjacentHTML('beforeend',
+      `<div class="evo-item"><div class="icon" style="background-position:${pos}"></div><div class="num">${v}</div>${NAMES[v]}</div>`);
+  });
+})();
+
+// --- New Role Modal ---
+let seen=new Set(),roleQueue=[],showingRole=false;
+function checkNewRoles(mergedValues){
+  mergedValues.forEach(v=>{
+    if(v>=4&&!seen.has(v)){seen.add(v);roleQueue.push(v);}
+  });
+  if(!showingRole)showNextRole();
+}
+function showNextRole(){
+  if(!roleQueue.length){showingRole=false;return;}
+  showingRole=true;
+  const v=roleQueue.shift();
+  $('roleImg').style.backgroundPosition=sprPos(v);
+  $('roleName').textContent=NAMES[v]||v;
+  $('roleVal').textContent=`數值：${v}`;
+  $('roleDesc').textContent=DESC[v]||'';
+  playNewRoleSound();
+  $('roleModal').classList.add('show');
+}
+function hideRole(){
+  $('roleModal').classList.remove('show');
+  setTimeout(showNextRole,200);
+}
+
+// --- Game ---
+const G={
+  grid:null,score:0,best:+localStorage.getItem('b2048')||0,won:false,over:false,
+  init(){
+    this.grid=Array.from({length:4},()=>Array(4).fill(0));
+    this.score=0;this.won=false;this.over=false;
+    seen=new Set();roleQueue=[];showingRole=false;
+    $('roleModal').classList.remove('show');
+    $('overlay').classList.remove('show');
+    $('btnCont').style.display='none';
+    this.spawn();this.spawn();this.render();
+  },
+  spawn(){
+    const e=[];
+    for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!this.grid[r][c])e.push([r,c]);
+    if(!e.length)return;
+    const[r,c]=e[Math.random()*e.length|0];
+    this.grid[r][c]=Math.random()<.9?2:4;
+  },
+  render(){
+    const t=$('tiles');t.innerHTML='';
+    for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+      const v=this.grid[r][c];
+      if(!v){t.insertAdjacentHTML('beforeend','<div></div>');continue;}
+      const pos=sprPos(v);
+      const cls=this.mergedSet&&this.mergedSet.has(r+','+c)?'tile merged':'tile';
+      t.insertAdjacentHTML('beforeend',`<div class="${cls}" style="background-position:${pos}" title="${NAMES[v]||v}"></div>`);
+    }
+    this.mergedSet=null;
+    $('score').textContent=this.score;
+    if(this.score>this.best){this.best=this.score;localStorage.setItem('b2048',this.best);}
+    $('best').textContent=this.best;
+  },
+  slide(row){
+    let a=row.filter(v=>v),mergedVals=[];
+    for(let i=0;i<a.length-1;i++){
+      if(a[i]&&a[i]===a[i+1]){a[i]*=2;this.score+=a[i];mergedVals.push(a[i]);a[i+1]=0;}
+    }
+    a=a.filter(v=>v);
+    while(a.length<4)a.push(0);
+    return{r:a,mv:mergedVals};
+  },
+  move(dir){
+    if(this.over||showingRole)return;
+    const g=this.grid,old=g.map(r=>[...r]);
+    this.mergedSet=new Set();
+    let allMerged=[];
+    if(dir===0){// up
+      for(let c=0;c<4;c++){
+        const{r,mv}=this.slide([g[0][c],g[1][c],g[2][c],g[3][c]]);
+        for(let rr=0;rr<4;rr++)g[rr][c]=r[rr];
+        allMerged.push(...mv);
+      }
+    }else if(dir===1){// right
+      for(let r=0;r<4;r++){
+        const{r:res,mv}=this.slide([...g[r]].reverse());
+        g[r]=res.reverse();
+        allMerged.push(...mv);
+      }
+    }else if(dir===2){// down
+      for(let c=0;c<4;c++){
+        const{r,mv}=this.slide([g[3][c],g[2][c],g[1][c],g[0][c]]);
+        const rev=r.reverse();
+        for(let rr=0;rr<4;rr++)g[rr][c]=rev[rr];
+        allMerged.push(...mv);
+      }
+    }else{// left
+      for(let r=0;r<4;r++){
+        const{r:res,mv}=this.slide([...g[r]]);
+        g[r]=res;
+        allMerged.push(...mv);
+      }
+    }
+    if(g.every((r,i)=>r.every((v,j)=>v===old[i][j])))return;
+    this.spawn();this.render();
+    // Check new roles first, then win/lose
+    checkNewRoles(allMerged);
+    if(!this.won&&g.flat().includes(2048)){
+      this.won=true;
+      $('msg').textContent='🎉 升到大老闆了！';
+      $('btnCont').style.display='';
+      $('overlay').classList.add('show');return;
+    }
+    if(this.isOver()){
+      this.over=true;
+      $('msg').textContent='😵 被社會淘汰了...';
+      $('overlay').classList.add('show');
+    }
+  },
+  isOver(){
+    const g=this.grid;
+    for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+      if(!g[r][c])return false;
+      if(c<3&&g[r][c]===g[r][c+1])return false;
+      if(r<3&&g[r][c]===g[r+1][c])return false;
+    }
+    return true;
+  },
+  cont(){$('overlay').classList.remove('show');}
+};
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  const map={ArrowUp:0,ArrowRight:1,ArrowDown:2,ArrowLeft:3};
+  if(map[e.key]!==undefined){e.preventDefault();G.move(map[e.key]);}
+});
+// Touch
+let tx,ty;
+const board=$('board');
+board.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+board.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<30)return;
+  if(Math.abs(dx)>Math.abs(dy))G.move(dx>0?1:3);else G.move(dy>0?2:0);
+});
+// Mouse drag
+let mx,my,md=false;
+board.addEventListener('mousedown',e=>{mx=e.clientX;my=e.clientY;md=true;});
+document.addEventListener('mouseup',e=>{
+  if(!md)return;md=false;
+  const dx=e.clientX-mx,dy=e.clientY-my;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<30)return;
+  if(Math.abs(dx)>Math.abs(dy))G.move(dx>0?1:3);else G.move(dy>0?2:0);
+});
+
+G.init();
+</script>
+</body>
+</html>
