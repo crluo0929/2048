@@ -136,8 +136,18 @@ const sprPos=v=>{const s=SPRITE[v]||SPRITE[65536];return`${s[0]*33.333}% ${s[1]*
 
 // --- Web Audio 音效 ---
 let audioCtx;
+function unlockAudio(){
+  if(audioCtx)return;
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  // iOS 需要播一個空聲音來解鎖
+  const b=audioCtx.createBuffer(1,1,22050),s=audioCtx.createBufferSource();
+  s.buffer=b;s.connect(audioCtx.destination);s.start();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+}
+document.addEventListener('touchstart',unlockAudio,{once:true});
+document.addEventListener('click',unlockAudio,{once:true});
 function playNewRoleSound(){
-  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  unlockAudio();
   const c=audioCtx,now=c.currentTime;
   // 升級音效：三個上升音符
   [0,.12,.24].forEach((t,i)=>{
